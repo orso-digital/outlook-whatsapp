@@ -8,46 +8,227 @@
   <style>
     body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 20px; color: #222; }
     h1 { font-size: 18px; margin: 0 0 12px; }
-    #subject { font-size: 15px; margin-bottom: 20px; word-break: break-word; }
-    #send {
-      display: block; text-align: center; text-decoration: none;
-      background: #25D366; color: #fff; font-size: 17px; font-weight: 600;
-      padding: 14px; border-radius: 10px;
+    #subject { font-size: 15px; margin-bottom: 8px; word-break: break-word; }
+    #files { font-size: 14px; color: #555; margin-bottom: 16px; }
+    .btn {
+      display: block; width: 100%; box-sizing: border-box; text-align: center; text-decoration: none;
+      background: #25D366; color: #fff; font-size: 17px; font-weight: 600; font-family: inherit;
+      padding: 14px; border: 0; border-radius: 10px; margin-bottom: 10px; cursor: pointer;
     }
-    #send.disabled { background: #9be3b6; pointer-events: none; }
-    #msg { font-size: 13px; color: #888; margin-top: 12px; }
+    .btn.secondary { background: #128C7E; }
+    .hidden { display: none; }
+    .disabled { background: #9be3b6; pointer-events: none; }
+    #msg { font-size: 13px; color: #888; margin-top: 8px; white-space: pre-wrap; }
+    #msg.err { color: #c0392b; }
   </style>
 </head>
 <body>
   <h1>שלח לוואטסאפ</h1>
   <div id="subject">טוען…</div>
-  <a id="send" class="disabled" href="#" target="_blank" rel="noopener">שלח לוואטסאפ</a>
+  <div id="files"></div>
+  <button id="prep" class="btn secondary hidden">הכן קישורים לקבצים</button>
+  <a id="send" class="btn disabled" href="#" target="_blank" rel="noopener">שלח לוואטסאפ</a>
   <div id="msg"></div>
 
   <script>
-    var MAX_BODY = 1500; // וואטסאפ מגביל את אורך הקישור
+    var MAX_TEXT = 1500;
+    var CLIENT_ID = '41427656-f50c-40a9-9be7-333eab39f820';
+    var SCOPES = 'openid offline_access Mail.Read Files.ReadWrite';
+    var TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+    var AUTH_PAGE = 'https://orso-digital.github.io/outlook-whatsapp/auth.html';
+    var GRAPH = 'https://graph.microsoft.com/v1.0';
+    var ROOT_FOLDER = 'קבצים מהמייל לוואטסאפ';
 
+    var item, subject = '', body = '';
+
+    function $(id) { return document.getElementById(id); }
+    function msg(t, isErr) { $('msg').textContent = t || ''; $('msg').className = isErr ? 'err' : ''; }
+
+    // ---------- בניית הודעת הוואטסאפ ----------
+    function enc(text) {
+      return encodeURIComponent(text).replace(/[!'()*~]/g, function (c) {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+      });
+    }
+
+    function setLink(links) {
+      var head = subject ? '*' + subject + '*\n\n' : '';
+      var linksText = links.map(function (l) { return '📎 ' + l.name + '\n' + l.url; }).join('\n\n');
+      var room = Math.max(200, MAX_TEXT - linksText.length);
+      var b = body.length > room ? body.slice(0, room).trim() + '…' : body;
+      var text = head + b + (linksText ? '\n\n' + linksText : '');
+      var a = $('send');
+      a.href = 'https://wa.me/?text=' + enc(text);
+      a.className = 'btn';
+    }
+
+    // ---------- התחברות למיקרוסופט ----------
+    function saveTokens(d) {
+      try {
+        localStorage.setItem('wa_tok', JSON.stringify({
+          access: d.access_token,
+          refresh: d.refresh_token,
+          exp: Date.now() + ((d.expires_in || 3600) - 120) * 1000
+        }));
+      } catch (e) {}
+    }
+
+    function loginDialog() {
+      return new Promise(function (resolve, reject) {
+        if (!Office.context.ui || !Office.context.ui.displayDialogAsync) {
+          reject(new Error('חלון התחברות לא נתמך כאן.'));
+          return;
+        }
+        Office.context.ui.displayDialogAsync(AUTH_PAGE, { height: 60, width: 30 }, function (ar) {
+          if (ar.status === Office.AsyncResultStatus.Failed) {
+            reject(new Error('לא נפתח חלון התחברות: ' + ar.error.message));
+            return;
+          }
+          var dlg = ar.value;
+          dlg.addEventHandler(Office.EventType.DialogMessageReceived, function (arg) {
+            dlg.close();
+            var d = JSON.parse(arg.message);
+            if (d.error) reject(new Error(d.error)); else resolve(d);
+          });
+          dlg.addEventHandler(Office.EventType.DialogEventReceived, function () {
+            reject(new Error('חלון ההתחברות נסגר.'));
+          });
+        });
+      });
+    }
+
+    async function getToken() {
+      var t = null;
+      try { t = JSON.parse(localStorage.getItem('wa_tok') || 'null'); } catch (e) {}
+      if (t && t.exp > Date.now()) return t.access;
+      if (t && t.refresh) {
+        try {
+          var r = await fetch(TOKEN_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              client_id: CLIENT_ID, grant_type: 'refresh_token',
+              refresh_token: t.refresh, scope: SCOPES
+            })
+          });
+          if (r.ok) { var d1 = await r.json(); saveTokens(d1); return d1.access_token; }
+        } catch (e) {}
+      }
+      msg('צריך להתחבר לחשבון מיקרוסופט (פעם ראשונה)…');
+      var d = await loginDialog();
+      saveTokens(d);
+      return d.access_token;
+    }
+
+    async function graph(path, opts) {
+      opts = opts || {};
+      var tok = await getToken();
+      opts.headers = Object.assign({ Authorization: 'Bearer ' + tok }, opts.headers || {});
+      var r = await fetch(path.indexOf('http') === 0 ? path : GRAPH + path, opts);
+      if (!r.ok) {
+        var txt = await r.text();
+        throw new Error('שגיאה ' + r.status + ': ' + txt.slice(0, 200));
+      }
+      return r;
+    }
+
+    // ---------- קבצים מצורפים ----------
+    function restId() {
+      var id = item.itemId;
+      try {
+        var host = (Office.context.mailbox.diagnostics.hostName || '');
+        if (/iOS|Android/i.test(host)) return id; // בטלפון המזהה כבר בפורמט הנכון
+        return Office.context.mailbox.convertToRestId(id, Office.MailboxEnums.RestVersion.v2_0);
+      } catch (e) { return id; }
+    }
+
+    function safeName(s) {
+      return (s || 'קובץ').replace(/[\\/:*?"<>|#%]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'קובץ';
+    }
+
+    function encPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+
+    async function upload(folder, name, blob) {
+      var path = '/me/drive/root:/' + encPath(folder + '/' + name);
+      if (blob.size <= 4 * 1024 * 1024) {
+        var r = await graph(path + ':/content?@microsoft.graph.conflictBehavior=replace', { method: 'PUT', body: blob });
+        return r.json();
+      }
+      var s = await (await graph(path + ':/createUploadSession', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } })
+      })).json();
+      var CHUNK = 320 * 1024 * 10, start = 0, res;
+      while (start < blob.size) {
+        var end = Math.min(start + CHUNK, blob.size) - 1;
+        res = await fetch(s.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Range': 'bytes ' + start + '-' + end + '/' + blob.size },
+          body: blob.slice(start, end + 1)
+        });
+        if (!res.ok && res.status !== 202) throw new Error('העלאה נכשלה: ' + res.status);
+        start = end + 1;
+      }
+      return res.json();
+    }
+
+    async function prepareLinks() {
+      $('prep').className = 'btn secondary disabled';
+      try {
+        var id = encodeURIComponent(restId());
+        var list = (await (await graph('/me/messages/' + id + '/attachments?$select=id,name,size,isInline')).json())
+          .value.filter(function (a) { return !a.isInline; });
+
+        var stamp = new Date().toISOString().slice(0, 10);
+        var folder = ROOT_FOLDER + '/' + safeName(stamp + ' ' + (subject || 'מייל').slice(0, 40));
+        var links = [];
+
+        for (var i = 0; i < list.length; i++) {
+          var a = list[i];
+          msg('מעלה קובץ ' + (i + 1) + ' מתוך ' + list.length + ': ' + a.name);
+          try {
+            var blob = await (await graph('/me/messages/' + id + '/attachments/' + encodeURIComponent(a.id) + '/$value')).blob();
+            var di = await upload(folder, safeName(a.name), blob);
+            var link = await (await graph('/me/drive/items/' + di.id + '/createLink', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'view', scope: 'anonymous' })
+            })).json();
+            links.push({ name: a.name, url: link.link.webUrl });
+          } catch (e) {
+            links.push({ name: a.name + ' (לא הצלחתי להעלות)', url: '' });
+          }
+        }
+        setLink(links.filter(function (l) { return l.url; }));
+        $('prep').className = 'btn secondary hidden';
+        msg('הקישורים מוכנים. לחצו "שלח לוואטסאפ".');
+      } catch (e) {
+        $('prep').className = 'btn secondary';
+        msg('לא הצלחתי להכין קישורים:\n' + e.message, true);
+      }
+    }
+
+    // ---------- טעינה ----------
     Office.onReady(function () {
-      var item = Office.context.mailbox.item;
-      var subject = item.subject || '';
-      document.getElementById('subject').textContent = subject || '(ללא נושא)';
+      item = Office.context.mailbox.item;
+      subject = item.subject || '';
+      $('subject').textContent = subject || '(ללא נושא)';
+
+      var atts = (item.attachments || []).filter(function (a) { return !a.isInline; });
 
       item.body.getAsync(Office.CoercionType.Text, function (result) {
-        var body = '';
         if (result.status === Office.AsyncResultStatus.Succeeded) {
-          body = (result.value || '').replace(/\r\n/g, '\n');
+          body = (result.value || '').replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+        }
+        if (atts.length > 0) {
+          $('files').textContent = '📎 ' + atts.length + ' קבצים מצורפים';
+          $('prep').className = 'btn secondary';
+          $('prep').onclick = prepareLinks;
+          setLink([]); // אפשר גם לשלוח בלי הקבצים
         } else {
-          document.getElementById('msg').textContent = 'לא הצלחתי לקרוא את גוף המייל. יישלח רק הנושא.';
+          setLink([]);
         }
-        body = body.replace(/\n{3,}/g, '\n\n').trim();
-        if (body.length > MAX_BODY) {
-          body = body.slice(0, MAX_BODY).trim() + '…';
-        }
-
-        var text = (subject ? '*' + subject + '*\n\n' : '') + body;
-        var btn = document.getElementById('send');
-        btn.href = 'https://wa.me/?text=' + encodeURIComponent(text);
-        btn.className = '';
       });
     });
   </script>

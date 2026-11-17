@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>התחברות</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>body{font-family:"Segoe UI",Arial,sans-serif;padding:24px;color:#333}</style>
+</head>
+<body>
+  <p id="m">מתחבר לחשבון מיקרוסופט…</p>
+  <script>
+    var CLIENT_ID = '41427656-f50c-40a9-9be7-333eab39f820';
+    var REDIRECT = 'https://orso-digital.github.io/outlook-whatsapp/auth.html';
+    var SCOPES = 'openid offline_access Mail.Read Files.ReadWrite';
+    var AUTH = 'https://login.microsoftonline.com/common/oauth2/v2.0/';
+
+    function b64url(bytes) {
+      var s = '';
+      bytes = new Uint8Array(bytes);
+      for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function send(obj) {
+      Office.context.ui.messageParent(JSON.stringify(obj));
+    }
+
+    async function start() {
+      var verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+      var state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+      localStorage.setItem('wa_pkce', JSON.stringify({ v: verifier, s: state }));
+      var challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+      var p = new URLSearchParams({
+        client_id: CLIENT_ID,
+        response_type: 'code',
+        redirect_uri: REDIRECT,
+        response_mode: 'query',
+        scope: SCOPES,
+        state: state,
+        code_challenge: challenge,
+        code_challenge_method: 'S256'
+      });
+      location.href = AUTH + 'authorize?' + p.toString();
+    }
+
+    async function finish(code, state) {
+      var saved = JSON.parse(localStorage.getItem('wa_pkce') || '{}');
+      localStorage.removeItem('wa_pkce');
+      if (!saved.v || saved.s !== state) {
+        send({ error: 'ההתחברות נכשלה (state). נסו שוב.' });
+        return;
+      }
+      var r = await fetch(AUTH + 'token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: CLIENT_ID,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: REDIRECT,
+          code_verifier: saved.v,
+          scope: SCOPES
+        })
+      });
+      var d = await r.json();
+      if (!r.ok) {
+        send({ error: d.error_description || d.error || 'שגיאה בקבלת הרשאה' });
+        return;
+      }
+      send(d);
+    }
+
+    Office.onReady(function () {
+      var q = new URLSearchParams(location.search);
+      if (q.get('error')) {
+        send({ error: q.get('error_description') || q.get('error') });
+      } else if (q.get('code')) {
+        finish(q.get('code'), q.get('state')).catch(function (e) { send({ error: String(e) }); });
+      } else {
+        start().catch(function (e) { send({ error: String(e) }); });
+      }
+    });
+  </script>
+</body>
+</html>
