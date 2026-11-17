@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+           xsi:type="MailApp">
+  <Id>d231bf77-000a-4ee7-a641-acfe5d3fb2c8</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>ORSO DIGITAL</ProviderName>
+  <DefaultLocale>he-IL</DefaultLocale>
+  <DisplayName DefaultValue="שלח לוואטסאפ"/>
+  <Description DefaultValue="שליחת תוכן המייל לוואטסאפ בלחיצה אחת"/>
+  <IconUrl DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-128.png"/>
+  <SupportUrl DefaultValue="https://orso-digital.github.io/outlook-whatsapp/taskpane.html"/>
+  <AppDomains>
+    <AppDomain>https://wa.me</AppDomain>
+    <AppDomain>https://api.whatsapp.com</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Mailbox"/>
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://orso-digital.github.io/outlook-whatsapp/taskpane.html"/>
+        <RequestedHeight>250</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadItem</Permissions>
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
+  </Rule>
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.3">
+          <bt:Set Name="Mailbox"/>
+        </bt:Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="MailHost">
+          <DesktopFormFactor>
+            <ExtensionPoint xsi:type="MessageReadCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="msgReadGroup">
+                  <Label resid="GroupLabel"/>
+                  <Control xsi:type="Button" id="msgReadOpenPaneButton">
+                    <Label resid="ButtonLabel"/>
+                    <Supertip>
+                      <Title resid="ButtonLabel"/>
+                      <Description resid="ButtonTooltip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon16"/>
+                      <bt:Image size="32" resid="Icon32"/>
+                      <bt:Image size="80" resid="Icon80"/>
+                    </Icon>
+                    <Action xsi:type="ShowTaskpane">
+                      <SourceLocation resid="TaskpaneUrl"/>
+                    </Action>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+
+          <MobileFormFactor>
+            <ExtensionPoint xsi:type="MobileMessageReadCommandSurface">
+              <Group id="mobileMsgReadGroup">
+                <Label resid="GroupLabel"/>
+                <Control xsi:type="MobileButton" id="mobileOpenPaneButton">
+                  <Label resid="ButtonLabel"/>
+                  <Icon xsi:type="bt:MobileIconList">
+                    <bt:Image size="25" scale="1" resid="Icon25"/>
+                    <bt:Image size="25" scale="2" resid="Icon50"/>
+                    <bt:Image size="25" scale="3" resid="Icon75"/>
+                    <bt:Image size="32" scale="1" resid="Icon32"/>
+                    <bt:Image size="32" scale="2" resid="Icon64"/>
+                    <bt:Image size="32" scale="3" resid="Icon96"/>
+                    <bt:Image size="48" scale="1" resid="Icon48"/>
+                    <bt:Image size="48" scale="2" resid="Icon96"/>
+                    <bt:Image size="48" scale="3" resid="Icon144"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="TaskpaneUrl"/>
+                  </Action>
+                </Control>
+              </Group>
+            </ExtensionPoint>
+          </MobileFormFactor>
+        </Host>
+      </Hosts>
+
+      <Resources>
+        <bt:Images>
+          <bt:Image id="Icon16" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-16.png"/>
+          <bt:Image id="Icon25" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-25.png"/>
+          <bt:Image id="Icon32" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-32.png"/>
+          <bt:Image id="Icon48" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-48.png"/>
+          <bt:Image id="Icon50" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-50.png"/>
+          <bt:Image id="Icon64" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-64.png"/>
+          <bt:Image id="Icon75" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-75.png"/>
+          <bt:Image id="Icon80" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-80.png"/>
+          <bt:Image id="Icon96" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-96.png"/>
+          <bt:Image id="Icon144" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/assets/icon-144.png"/>
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="TaskpaneUrl" DefaultValue="https://orso-digital.github.io/outlook-whatsapp/taskpane.html"/>
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="GroupLabel" DefaultValue="וואטסאפ"/>
+          <bt:String id="ButtonLabel" DefaultValue="שלח לוואטסאפ"/>
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="ButtonTooltip" DefaultValue="שליחת נושא ותוכן המייל לוואטסאפ"/>
+        </bt:LongStrings>
+      </Resources>
+    </VersionOverrides>
+  </VersionOverrides>
+</OfficeApp>

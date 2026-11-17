@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>שלח לוואטסאפ</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 20px; color: #222; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    #subject { font-size: 15px; margin-bottom: 20px; word-break: break-word; }
+    #send {
+      display: block; text-align: center; text-decoration: none;
+      background: #25D366; color: #fff; font-size: 17px; font-weight: 600;
+      padding: 14px; border-radius: 10px;
+    }
+    #send.disabled { background: #9be3b6; pointer-events: none; }
+    #msg { font-size: 13px; color: #888; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>שלח לוואטסאפ</h1>
+  <div id="subject">טוען…</div>
+  <a id="send" class="disabled" href="#" target="_blank" rel="noopener">שלח לוואטסאפ</a>
+  <div id="msg"></div>
+
+  <script>
+    var MAX_BODY = 1500; // וואטסאפ מגביל את אורך הקישור
+
+    Office.onReady(function () {
+      var item = Office.context.mailbox.item;
+      var subject = item.subject || '';
+      document.getElementById('subject').textContent = subject || '(ללא נושא)';
+
+      item.body.getAsync(Office.CoercionType.Text, function (result) {
+        var body = '';
+        if (result.status === Office.AsyncResultStatus.Succeeded) {
+          body = (result.value || '').replace(/\r\n/g, '\n');
+        } else {
+          document.getElementById('msg').textContent = 'לא הצלחתי לקרוא את גוף המייל. יישלח רק הנושא.';
+        }
+        body = body.replace(/\n{3,}/g, '\n\n').trim();
+        if (body.length > MAX_BODY) {
+          body = body.slice(0, MAX_BODY).trim() + '…';
+        }
+
+        var text = (subject ? '*' + subject + '*\n\n' : '') + body;
+        var btn = document.getElementById('send');
+        btn.href = 'https://wa.me/?text=' + encodeURIComponent(text);
+        btn.className = '';
+      });
+    });
+  </script>
+</body>
+</html>
